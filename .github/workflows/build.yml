@@ -13,11 +13,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Unpack project zip (if uploaded from phone)
+      - name: Prepare Project Files
         run: |
-          if [ -f AssetExplorer.zip ]; then
-            unzip -o -q AssetExplorer.zip -d .
+          shopt -s nullglob
+          
+          # 1. Если в репозитории есть ZIP-архив, распаковываем его
+          zips=(*.zip)
+          if [ ${#zips[@]} -gt 0 ]; then
+            for z in "${zips[@]}"; do
+              echo "Extracting $z..."
+              unzip -o -q "$z" -d .
+            done
           fi
+
+          # 2. Если settings.gradle лежит во вложенной папке, переносим в корень
+          if [ ! -f "settings.gradle" ]; then
+            SETTING_FILE=$(find . -mindepth 2 -maxdepth 3 -name "settings.gradle" | head -n 1)
+            if [ -n "$SETTING_FILE" ]; then
+              DIR=$(dirname "$SETTING_FILE")
+              echo "Found settings.gradle in $DIR, moving files to root..."
+              cp -rn "$DIR"/* . 2>/dev/null || cp -r "$DIR"/* .
+            fi
+          fi
+
+          echo "Root directory contents:"
           ls -la
 
       - uses: actions/setup-java@v4
@@ -29,7 +48,7 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Build
+      - name: Build APK
         run: gradle assembleDebug --no-daemon --stacktrace
 
       - name: Rename APK
