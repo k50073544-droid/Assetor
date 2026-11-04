@@ -31,13 +31,42 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Build Debug APK
-        run: gradle assembleDebug --no-daemon --stacktrace
+      # 🚀 ШАГ 1: Распаковываем архив
+      - name: Unzip Project
+        run: |
+          unzip AssetExplorer.zip -d ./project_temp
 
+      # 🚀 ШАГ 2: Ищем, где именно лежат файлы сборки внутри архива
+      - name: Find Project Root
+        id: find_root
+        run: |
+          # Ищем файл settings.gradle, чтобы понять, где корень проекта
+          BUILD_FILE=$(find ./project_temp -name "settings.gradle" -o -name "settings.gradle.kts" | head -n 1)
+          
+          if [ -z "$BUILD_FILE" ]; then
+            echo "Ошибка: В архиве нет файлов сборки Gradle!"
+            exit 1
+          fi
+          
+          # Получаем путь к папке с проектом
+          PROJECT_DIR=$(dirname "$BUILD_FILE")
+          echo "Найден проект в папке: $PROJECT_DIR"
+          echo "dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
+
+      # 🚀 ШАГ 3: Генерируем gradlew и собираем
+      - name: Generate Wrapper and Build
+        run: |
+          cd ${{ steps.find_root.outputs.dir }}
+          gradle wrapper --gradle-version 8.7
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      # 🚀 ШАГ 4: Забираем готовый APK
       - name: Prepare Output
         run: |
           mkdir -p out
-          cp app/build/outputs/apk/debug/app-debug.apk out/AssetExplorer.apk
+          # Ищем собранный APK в папке проекта
+          find ./project_temp -name "*.apk" -exec cp {} out/AssetExplorer.apk \;
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
