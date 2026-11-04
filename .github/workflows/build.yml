@@ -11,40 +11,31 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Unpack project zip (if uploaded from phone)
-        run: |
-          if [ -f AssetExplorer.zip ]; then
-            unzip -o -q AssetExplorer.zip -d .
-          fi
-          ls -la
-
-      - uses: actions/setup-java@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
-          distribution: temurin
+          distribution: 'temurin'
           java-version: '17'
 
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Build
-        run: gradle assembleDebug --no-daemon --stacktrace
+      - name: Make gradlew executable
+        run: chmod +x gradlew
 
-      - name: Rename APK
+      - name: Build Debug APK with local Gradlew
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Prepare Output
         run: |
           mkdir -p out
           cp app/build/outputs/apk/debug/app-debug.apk out/AssetExplorer.apk
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
         with:
           name: AssetExplorer-apk
           path: out/AssetExplorer.apk
-
-      - name: Publish release (direct APK download link)
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: build-${{ github.run_number }}
-          name: Asset Explorer build ${{ github.run_number }}
-          files: out/AssetExplorer.apk
