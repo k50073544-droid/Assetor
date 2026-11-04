@@ -19,8 +19,18 @@ jobs:
       - name: Build Debug APK
         run: |
           export ANDROID_HOME=/opt/android-sdk
-          chmod +x gradlew || true
-          gradle assembleDebug --no-daemon --stacktrace
+          export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin
+          
+          # Проверяем наличие gradlew, если его нет - используем глобальный gradle из контейнера
+          if [ -f "./gradlew" ]; then
+            chmod +x gradlew
+            ./gradlew assembleDebug --no-daemon --stacktrace
+          else
+            # В этом контейнере gradle может лежать в /opt/gradle/... или вызываться через android build tools
+            # Попробуем найти gradle или использовать ant/mvn/gradle если доступно
+            # Если в контейнере gradle доступен по другому пути:
+            /opt/gradle/gradle-*/bin/gradle assembleDebug --no-daemon --stacktrace || gradle assembleDebug --no-daemon --stacktrace
+          fi
 
       - name: Prepare Output
         run: |
