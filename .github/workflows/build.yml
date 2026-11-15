@@ -10,73 +10,40 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - name: Unpack project zip (if uploaded from phone)
+        run: |
+          if [ -f AssetExplorer.zip ]; then
+            unzip -o -q AssetExplorer.zip -d .
+          fi
+          ls -la
+
+      - uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v4
+      - uses: gradle/actions/setup-gradle@v4
         with:
-          packages: 'platform-tools'
+          gradle-version: '8.9'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.7'
+      - name: Build
+        run: gradle assembleDebug --no-daemon --stacktrace
 
-      # 🚀 ШАГ 1: Распаковываем архив
-      - name: Unzip Project
-        run: |
-          unzip AssetExplorer.zip -d ./project_temp
-
-      # 🚀 ШАГ 2: Ищем, где именно лежат файлы сборки внутри архива
-      - name: Find Project Root
-        id: find_root
-        run: |
-          # Ищем файл settings.gradle, чтобы понять, где корень проекта
-          BUILD_FILE=$(find ./project_temp -name "settings.gradle" -o -name "settings.gradle.kts" | head -n 1)
-          
-          if [ -z "$BUILD_FILE" ]; then
-            echo "Ошибка: В архиве нет файлов сборки Gradle!"
-            exit 1
-          fi
-          
-          # Получаем путь к папке с проектом
-          PROJECT_DIR=$(dirname "$BUILD_FILE")
-          echo "Найден проект в папке: $PROJECT_DIR"
-          echo "dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
-
-      # 🚀 ШАГ 3: Генерируем gradlew и собираем
-      - name: Generate Wrapper and Build
-        run: |
-          cd ${{ steps.find_root.outputs.dir }}
-          gradle wrapper --gradle-version 8.7
-          chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
-
-      # 🚀 ШАГ 4: Забираем готовый APK
-      - name: Prepare Output
+      - name: Rename APK
         run: |
           mkdir -p out
-          # Ищем собранный APK в папке проекта
-          find ./project_temp -name "*.apk" -exec cp {} out/AssetExplorer.apk \;
+          cp app/build/outputs/apk/debug/app-debug.apk out/AssetExplorer.apk
 
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: AssetExplorer-apk
           path: out/AssetExplorer.apk
 
-      - name: Publish Release
+      - name: Publish release (direct APK download link)
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         with:
           tag_name: build-${{ github.run_number }}
           name: Asset Explorer build ${{ github.run_number }}
